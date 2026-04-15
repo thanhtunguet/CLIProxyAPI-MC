@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '@/stores';
 import { apiCallApi, getApiCallErrorMessage } from '@/services/api/apiCall';
@@ -30,7 +24,9 @@ interface ChatMessageItem {
 
 let messageCounter = 0;
 
-const buildModelGroups = (config: ReturnType<typeof useConfigStore.getState>['config']): ModelGroup[] => {
+const buildModelGroups = (
+  config: ReturnType<typeof useConfigStore.getState>['config']
+): ModelGroup[] => {
   const groups: ModelGroup[] = [];
 
   // Gemini
@@ -303,7 +299,9 @@ export function PlaygroundPage() {
       }
 
       if (body && typeof body === 'object' && 'usage' in body) {
-        const usage = (body as Record<string, unknown>).usage as Record<string, unknown> | undefined;
+        const usage = (body as Record<string, unknown>).usage as
+          | Record<string, unknown>
+          | undefined;
         if (usage?.total_tokens) {
           tokenCount = Number(usage.total_tokens);
         }
@@ -364,11 +362,7 @@ export function PlaygroundPage() {
             />
           </div>
           <div className={styles.tempControl}>
-            <TemperatureControl
-              value={temperature}
-              onChange={setTemperature}
-              disabled={loading}
-            />
+            <TemperatureControl value={temperature} onChange={setTemperature} disabled={loading} />
           </div>
           <div className={styles.systemPromptBtn}>
             <SystemPromptDialog
@@ -386,7 +380,14 @@ export function PlaygroundPage() {
         {messages.length === 0 ? (
           <div className={styles.empty}>
             <div className={styles.emptyIcon}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              >
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             </div>

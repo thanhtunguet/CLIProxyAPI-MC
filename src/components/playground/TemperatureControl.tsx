@@ -16,7 +16,7 @@ export function TemperatureControl({
   onChange,
   min = 0,
   max = 1,
-  step = 0.1,
+  step = 0.01,
   disabled = false,
 }: TemperatureControlProps) {
   const { t } = useTranslation();
@@ -32,7 +32,7 @@ export function TemperatureControl({
         <label htmlFor={sliderId} className={styles.label}>
           {t('playground.temperature')}
         </label>
-        <span className={styles.value}>{value.toFixed(1)}</span>
+        <span className={styles.value}>{value.toFixed(2)}</span>
       </div>
       <div className={styles.sliderWrap}>
         <input
