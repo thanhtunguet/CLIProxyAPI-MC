@@ -78,7 +78,7 @@
 
 .inputArea {
   border-top: 1px solid var(--border-color);
-  padding: $spacing-md 0;
+  padding: $spacing-md $spacing-md;
   flex-shrink: 0;
   background: var(--bg-primary);
 }
