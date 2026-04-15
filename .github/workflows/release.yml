@@ -6,6 +6,12 @@ on:
       - 'v*'
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag for the release (e.g. v1.2.3). Leave empty to auto-detect latest tag.'
+        required: false
+        type: string
 
 jobs:
   build-and-release:
@@ -21,6 +27,26 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Determine version tag
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            latest_tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1 || true)"
+            if [ -z "${latest_tag}" ]; then
+              echo "No v* tags found. Creating initial tag v0.0.0."
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git tag v0.0.0
+              git push origin v0.0.0
+              latest_tag="v0.0.0"
+            fi
+            echo "tag=${latest_tag}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -33,7 +59,7 @@ jobs:
       - name: Build all-in-one HTML
         run: npm run build
         env:
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.tag }}
 
       - name: Prepare release assets
         run: |
@@ -44,7 +70,7 @@ jobs:
       - name: Generate release notes
         run: |
           set -euo pipefail
-          current_tag="${GITHUB_REF_NAME}"
+          current_tag="${{ steps.version.outputs.tag }}"
           previous_tag="$(git tag --list 'v*' --sort=-v:refname | grep -v "^${current_tag}$" | head -n 1 || true)"
           if [ -n "${previous_tag}" ]; then
             range="${previous_tag}..${current_tag}"
@@ -52,15 +78,37 @@ jobs:
             range="${current_tag}"
           fi
 
-          : > release-notes.md
+          echo "# Release ${current_tag}" > release-notes.md
+          echo "" >> release-notes.md
+          if [ "${previous_tag}" ]; then
+            echo "## Changes since ${previous_tag}" >> release-notes.md
+          else
+            echo "## Initial release" >> release-notes.md
+          fi
+          echo "" >> release-notes.md
           git log --pretty=format:"- %h %s" "${range}" >> release-notes.md
+
+      - name: Delete existing release (if any)
+        run: |
+          tag="${{ steps.version.outputs.tag }}"
+          existing=$(gh release view "$tag" --json id --jq '.id' 2>/dev/null || true)
+          if [ -n "$existing" ]; then
+            echo "Release for ${tag} already exists. Deleting to recreate..."
+            gh release delete "$tag" --yes --cleanup-tag
+          else
+            echo "No existing release for ${tag}. Will create new one."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ steps.version.outputs.tag }}
           files: dist/management.html
           body_path: release-notes.md
           draft: false
           prerelease: false
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
