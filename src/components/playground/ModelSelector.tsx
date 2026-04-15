@@ -28,7 +28,7 @@ interface ModelSelectorProps {
 const VIEWPORT_MARGIN = 8;
 const DROPDOWN_OFFSET = 6;
 const DROPDOWN_MAX_HEIGHT = 320;
-const DROPDOWN_Z_INDEX = 2010;
+const DROPDOWN_Z_INDEX = 9999;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -301,7 +301,7 @@ export function ModelSelector({
 
   return (
     <>
-      <div className={styles.wrap}>
+      <div ref={wrapRef} className={styles.wrap}>
         <button
           id={selectId}
           type="button"

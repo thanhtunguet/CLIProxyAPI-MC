@@ -21,6 +21,10 @@ export function TemperatureControl({
 }: TemperatureControlProps) {
   const { t } = useTranslation();
   const sliderId = useId();
+  const range = max - min;
+  const normalizedValue = range > 0 ? (value - min) / range : 0;
+  const clampedRatio = Math.max(0, Math.min(1, normalizedValue));
+  const percentage = clampedRatio * 100;
 
   return (
     <div className={styles.root}>
@@ -45,7 +49,12 @@ export function TemperatureControl({
         <div className={styles.track}>
           <div
             className={styles.trackFill}
-            style={{ width: `${((value - min) / (max - min)) * 100}%` }}
+            style={{ width: `${percentage}%` }}
+          />
+          <div
+            className={styles.thumb}
+            style={{ left: `${percentage}%` }}
+            aria-hidden="true"
           />
         </div>
       </div>

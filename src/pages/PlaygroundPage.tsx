@@ -8,6 +8,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useConfigStore } from '@/stores';
 import { apiCallApi, getApiCallErrorMessage } from '@/services/api/apiCall';
+import { apiKeysApi } from '@/services/api/apiKeys';
 import { buildOpenAIChatCompletionsEndpoint } from '@/components/providers/utils';
 import {
   ModelSelector,
@@ -186,19 +187,15 @@ export function PlaygroundPage() {
       const cfg = useConfigStore.getState().config;
 
       // Search through all providers for the model
-      const searchModel = (
-        models: Array<{ name: string }> | undefined,
-        key: string | undefined,
-        url: string | undefined
-      ): boolean => {
-        if (!models || !key || !url) return false;
+      const searchModel = (models: Array<{ name: string }> | undefined): boolean => {
+        if (!models) return false;
         return models.some((m) => m.name === selectedModel);
       };
 
       // Check Gemini
       if (!baseUrl && cfg?.geminiApiKeys) {
         for (const k of cfg.geminiApiKeys) {
-          if (searchModel(k.models, k.apiKey, k.baseUrl)) {
+          if (searchModel(k.models)) {
             baseUrl = k.baseUrl || 'https://generativelanguage.googleapis.com';
             apiKey = k.apiKey;
             break;
@@ -209,7 +206,7 @@ export function PlaygroundPage() {
       // Check Codex
       if (!baseUrl && cfg?.codexApiKeys) {
         for (const k of cfg.codexApiKeys) {
-          if (searchModel(k.models, k.apiKey, k.baseUrl)) {
+          if (searchModel(k.models)) {
             baseUrl = k.baseUrl!;
             apiKey = k.apiKey;
             break;
@@ -220,7 +217,7 @@ export function PlaygroundPage() {
       // Check Claude
       if (!baseUrl && cfg?.claudeApiKeys) {
         for (const k of cfg.claudeApiKeys) {
-          if (searchModel(k.models, k.apiKey, k.baseUrl)) {
+          if (searchModel(k.models)) {
             baseUrl = k.baseUrl || 'https://api.anthropic.com';
             apiKey = k.apiKey;
             break;
@@ -231,7 +228,7 @@ export function PlaygroundPage() {
       // Check Vertex
       if (!baseUrl && cfg?.vertexApiKeys) {
         for (const k of cfg.vertexApiKeys) {
-          if (searchModel(k.models, k.apiKey, k.baseUrl)) {
+          if (searchModel(k.models)) {
             baseUrl = k.baseUrl!;
             apiKey = k.apiKey;
             break;
@@ -242,7 +239,7 @@ export function PlaygroundPage() {
       // Check OpenAI Compatible
       if (!baseUrl && cfg?.openaiCompatibility) {
         for (const provider of cfg.openaiCompatibility) {
-          if (searchModel(provider.models, provider.apiKeyEntries?.[0]?.apiKey, provider.baseUrl)) {
+          if (searchModel(provider.models)) {
             baseUrl = provider.baseUrl;
             apiKey = provider.apiKeyEntries?.[0]?.apiKey || '';
             break;
@@ -252,6 +249,22 @@ export function PlaygroundPage() {
 
       if (!baseUrl) {
         throw new Error(t('playground.provider_not_found'));
+      }
+
+      // Prefer API keys managed by backend config management (/api-keys).
+      // Fallback to provider-specific key if managed keys are not available.
+      try {
+        const managedKeys = await apiKeysApi.list();
+        const primaryManagedKey = managedKeys.find((key) => key.trim());
+        if (primaryManagedKey) {
+          apiKey = primaryManagedKey.trim();
+        }
+      } catch {
+        // Keep provider-level fallback key when /api-keys is unavailable.
+      }
+
+      if (!apiKey) {
+        throw new Error(t('notification.openai_test_key_required'));
       }
 
       const endpoint = buildOpenAIChatCompletionsEndpoint(baseUrl);
