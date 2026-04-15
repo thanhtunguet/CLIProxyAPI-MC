@@ -375,6 +375,7 @@ export function PlaygroundPage() {
               open={systemPromptDialogOpen}
               value={systemPrompt}
               onChange={setSystemPrompt}
+              onOpen={() => setSystemPromptDialogOpen(true)}
               onClose={() => setSystemPromptDialogOpen(false)}
             />
           </div>

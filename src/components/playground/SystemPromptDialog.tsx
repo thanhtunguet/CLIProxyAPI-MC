@@ -8,16 +8,18 @@ interface SystemPromptDialogProps {
   open: boolean;
   value: string;
   onChange: (value: string) => void;
+  onOpen: () => void;
   onClose: () => void;
 }
 
-export function SystemPromptDialog({ open, value, onChange, onClose }: SystemPromptDialogProps) {
+export function SystemPromptDialog({ open, value, onChange, onOpen, onClose }: SystemPromptDialogProps) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState(value);
 
   const handleOpen = useCallback(() => {
     setDraft(value);
-  }, [value]);
+    onOpen();
+  }, [onOpen, value]);
 
   const handleSave = useCallback(() => {
     onChange(draft);
