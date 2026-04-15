@@ -44,8 +44,7 @@ const resolveDropdownStyle = (element: HTMLElement): CSSProperties => {
   );
   const spaceBelow = viewportHeight - rect.bottom - VIEWPORT_MARGIN - DROPDOWN_OFFSET;
   const spaceAbove = rect.top - VIEWPORT_MARGIN - DROPDOWN_OFFSET;
-  const direction =
-    spaceBelow >= DROPDOWN_MAX_HEIGHT || spaceBelow >= spaceAbove ? 'down' : 'up';
+  const direction = spaceBelow >= DROPDOWN_MAX_HEIGHT || spaceBelow >= spaceAbove ? 'down' : 'up';
   const maxHeight = Math.max(
     0,
     Math.min(DROPDOWN_MAX_HEIGHT, direction === 'down' ? spaceBelow : spaceAbove)
@@ -70,7 +69,9 @@ const resolveDropdownStyle = (element: HTMLElement): CSSProperties => {
       };
 };
 
-const flattenModels = (groups: readonly ModelGroup[]): Array<{ model: string; provider: string }> => {
+const flattenModels = (
+  groups: readonly ModelGroup[]
+): Array<{ model: string; provider: string }> => {
   const result: Array<{ model: string; provider: string }> = [];
   for (const group of groups) {
     for (const model of group.models) {
@@ -188,7 +189,9 @@ export function ModelSelector({
 
   useEffect(() => {
     if (!isOpen || resolvedHighlightedIndex < 0) return;
-    const highlightedOption = document.getElementById(`${selectId}-option-${resolvedHighlightedIndex}`);
+    const highlightedOption = document.getElementById(
+      `${selectId}-option-${resolvedHighlightedIndex}`
+    );
     highlightedOption?.scrollIntoView({ block: 'nearest' });
   }, [isOpen, resolvedHighlightedIndex, selectId]);
 
@@ -208,9 +211,7 @@ export function ModelSelector({
       switch (event.key) {
         case 'ArrowDown':
           event.preventDefault();
-          setHighlightedIndex((prev) =>
-            prev < allFilteredModels.length - 1 ? prev + 1 : prev
-          );
+          setHighlightedIndex((prev) => (prev < allFilteredModels.length - 1 ? prev + 1 : prev));
           return;
         case 'ArrowUp':
           event.preventDefault();
@@ -312,9 +313,7 @@ export function ModelSelector({
           aria-controls={isOpen ? listboxId : undefined}
           disabled={disabled}
         >
-          <span className={styles.triggerText}>
-            {displayText}
-          </span>
+          <span className={styles.triggerText}>{displayText}</span>
           <span className={styles.triggerIcon} aria-hidden="true">
             <IconChevronDown size={14} />
           </span>
