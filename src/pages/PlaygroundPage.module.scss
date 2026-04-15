@@ -1,0 +1,158 @@
+@use '@/styles/variables.scss' as *;
+
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.header {
+  padding: $spacing-md 0;
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 $spacing-md;
+}
+
+.controls {
+  display: flex;
+  gap: $spacing-md;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.modelSelect {
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.tempControl {
+  flex: 0 0 200px;
+}
+
+.systemPromptBtn {
+  flex-shrink: 0;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: $spacing-md 0;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: $spacing-2xl $spacing-lg;
+  text-align: center;
+}
+
+.emptyIcon {
+  color: var(--text-secondary);
+  opacity: 0.5;
+  margin-bottom: $spacing-md;
+}
+
+.emptyTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 $spacing-xs;
+}
+
+.emptyDesc {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.inputArea {
+  border-top: 1px solid var(--border-color);
+  padding: $spacing-md 0;
+  flex-shrink: 0;
+  background: var(--bg-primary);
+}
+
+.inputWrap {
+  margin-bottom: $spacing-sm;
+}
+
+.textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: none;
+  font-family: inherit;
+  transition: border-color $transition-fast, box-shadow $transition-fast;
+  max-height: 160px;
+  overflow-y: auto;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba($primary-color, 0.18);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &::placeholder {
+    color: var(--text-secondary);
+  }
+}
+
+.inputActions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.inputActionsLeft,
+.inputActionsRight {
+  display: flex;
+  gap: $spacing-sm;
+}
+
+// System prompt textarea style (injected globally for Modal)
+:global {
+  .system-prompt-textarea {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: $radius-md;
+    color: var(--text-primary);
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color $transition-fast, box-shadow $transition-fast;
+
+    &:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba($primary-color, 0.18);
+    }
+
+    &::placeholder {
+      color: var(--text-secondary);
+    }
+  }
+}

@@ -117,6 +117,7 @@
     "quota_management": "Управление квотами",
     "usage_stats": "Статистика использования",
     "config_management": "Панель конфигурации",
+    "playground": "Playground",
     "logs": "Просмотр логов",
     "system_info": "Информация системы"
   },
@@ -1403,6 +1404,29 @@
     "clear_login_desc": "Очистите локально сохранённые данные входа и выполните выход. Настройки стоимости статистики использования сохранятся.",
     "clear_login_button": "Очистить данные входа",
     "clear_login_confirm": "Очистить локальные данные входа и выйти?"
+  },
+  "playground": {
+    "title": "Playground",
+    "select_model": "Выберите модель",
+    "search_model": "Поиск моделей...",
+    "no_models": "Модели не найдены",
+    "temperature": "Температура",
+    "system_prompt": "Системный промпт",
+    "edit_system_prompt": "Редактировать системный промпт",
+    "system_prompt_placeholder": "Введите системный промпт...",
+    "you": "Вы",
+    "assistant": "Ассистент",
+    "tokens": "Токены",
+    "error": "Ошибка",
+    "empty_response": "(Пустой ответ)",
+    "provider_not_found": "URL провайдера не найден для выбранной модели",
+    "empty_title": "Начните разговор",
+    "empty_desc": "Выберите модель и введите сообщение ниже, чтобы начать.",
+    "input_placeholder": "Введите сообщение... (Enter для отправки, Shift+Enter для новой строки)",
+    "send": "Отправить",
+    "stop": "Стоп",
+    "clear_chat": "Очистить чат",
+    "copied": "Скопировано!"
   },
   "notification": {
     "debug_updated": "Настройки отладки обновлены",

@@ -146,7 +146,7 @@ export function Modal({
     (notifyParent: boolean) => {
       if (closeTimerRef.current !== null) return;
       setIsClosing(true);
-      closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = setTimeout(() => {
         setIsVisible(false);
         setIsClosing(false);
         closeTimerRef.current = null;
