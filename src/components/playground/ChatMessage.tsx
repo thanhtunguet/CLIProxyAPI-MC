@@ -9,9 +9,10 @@ interface ChatMessageProps {
   role: 'user' | 'assistant';
   content: string;
   tokenCount?: number;
+  typing?: boolean;
 }
 
-export function ChatMessage({ role, content, tokenCount }: ChatMessageProps) {
+export function ChatMessage({ role, content, tokenCount, typing = false }: ChatMessageProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
@@ -37,6 +38,17 @@ export function ChatMessage({ role, content, tokenCount }: ChatMessageProps) {
         <div className={styles.markdown}>
           {role === 'user' ? (
             <div className={styles.userText}>{content}</div>
+          ) : typing && !content.trim() ? (
+            <div className={styles.typingIndicator} aria-label={t('common.loading')}>
+              <span className={styles.typingDot} />
+              <span className={styles.typingDot} />
+              <span className={styles.typingDot} />
+            </div>
+          ) : typing ? (
+            <div className={styles.typingText}>
+              {content}
+              <span className={styles.typingCursor}>▍</span>
+            </div>
           ) : (
             <ReactMarkdown>{content}</ReactMarkdown>
           )}
@@ -53,6 +65,7 @@ export function ChatMessage({ role, content, tokenCount }: ChatMessageProps) {
             onClick={handleCopy}
             title={t('common.copy')}
             aria-label={t('common.copy')}
+            disabled={!content.trim()}
           >
             <IconCopy size={14} />
           </button>

@@ -27,9 +27,14 @@ interface ChatMessageItem {
   role: 'user' | 'assistant';
   content: string;
   tokenCount?: number;
+  typing?: boolean;
 }
 
 let messageCounter = 0;
+const TYPING_MIN_DURATION_MS = 500;
+const TYPING_MAX_DURATION_MS = 2200;
+const TYPING_MIN_STEPS = 12;
+const TYPING_MAX_STEPS = 80;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -245,6 +250,57 @@ export function PlaygroundPage() {
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  const revealAssistantMessage = useCallback(
+    async (messageId: string, fullContent: string, tokenCount?: number) => {
+      const safeContent = fullContent || '';
+      const totalLength = safeContent.length;
+
+      if (typeof window === 'undefined' || totalLength <= 1) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg.id === messageId
+              ? { ...msg, content: safeContent, tokenCount, typing: false }
+              : msg
+          )
+        );
+        return;
+      }
+
+      const duration = Math.min(
+        TYPING_MAX_DURATION_MS,
+        Math.max(TYPING_MIN_DURATION_MS, totalLength * 18)
+      );
+      const steps = Math.min(
+        TYPING_MAX_STEPS,
+        Math.max(TYPING_MIN_STEPS, Math.ceil(totalLength / 3))
+      );
+      const chunkSize = Math.max(1, Math.ceil(totalLength / steps));
+      const intervalMs = Math.max(16, Math.round(duration / steps));
+
+      await new Promise<void>((resolve) => {
+        let cursor = 0;
+        const timer = window.setInterval(() => {
+          cursor = Math.min(totalLength, cursor + chunkSize);
+          const partial = safeContent.slice(0, cursor);
+
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === messageId
+                ? { ...msg, content: partial, tokenCount, typing: cursor < totalLength }
+                : msg
+            )
+          );
+
+          if (cursor >= totalLength) {
+            window.clearInterval(timer);
+            resolve();
+          }
+        }, intervalMs);
+      });
+    },
+    []
+  );
+
   const loadModels = useCallback(async () => {
     if (!apiBase) {
       setModelGroups([]);
@@ -317,13 +373,23 @@ export function PlaygroundPage() {
     const text = input.trim();
     if (!text || loading || loadingModels || !selectedModel) return;
 
+    const typingMessageId = `msg-${++messageCounter}`;
     const userMessage: ChatMessageItem = {
       id: `msg-${++messageCounter}`,
       role: 'user',
       content: text,
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [
+      ...prev,
+      userMessage,
+      {
+        id: typingMessageId,
+        role: 'assistant',
+        content: '',
+        typing: true,
+      },
+    ]);
     setInput('');
     setLoading(true);
 
@@ -392,25 +458,24 @@ export function PlaygroundPage() {
         }
       }
 
-      const assistantMessage: ChatMessageItem = {
-        id: `msg-${++messageCounter}`,
-        role: 'assistant',
-        content: assistantContent || t('playground.empty_response'),
-        tokenCount,
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
+      await revealAssistantMessage(
+        typingMessageId,
+        assistantContent || t('playground.empty_response'),
+        tokenCount
+      );
     } catch (err: unknown) {
       if (isRequestCanceled(err)) {
+        setMessages((prev) => prev.filter((msg) => msg.id !== typingMessageId));
         return;
       }
       const errorMessage = err instanceof Error ? err.message : t('common.unknown_error');
-      const errorMessageObj: ChatMessageItem = {
-        id: `msg-${++messageCounter}`,
-        role: 'assistant',
-        content: `**${t('playground.error')}**: ${errorMessage}`,
-      };
-      setMessages((prev) => [...prev, errorMessageObj]);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === typingMessageId
+            ? { ...msg, content: `**${t('playground.error')}**: ${errorMessage}`, typing: false }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
       setAbortController(null);
@@ -426,6 +491,7 @@ export function PlaygroundPage() {
     t,
     apiBase,
     playgroundApiKey,
+    revealAssistantMessage,
   ]);
 
   const handleStop = useCallback(() => {
@@ -504,6 +570,7 @@ export function PlaygroundPage() {
               role={msg.role}
               content={msg.content}
               tokenCount={msg.tokenCount}
+              typing={msg.typing}
             />
           ))
         )}
