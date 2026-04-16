@@ -12,9 +12,27 @@ interface ChatMessageProps {
   typing?: boolean;
 }
 
+const THINK_BLOCK_RE = /<think>([\s\S]*?)<\/think>/gi;
+
+const extractThinkBlocks = (input: string): { reasoning: string[]; visibleContent: string } => {
+  const reasoning: string[] = [];
+  const visibleContent = input.replace(THINK_BLOCK_RE, (_full, block: string) => {
+    const trimmed = String(block ?? '').trim();
+    if (trimmed) reasoning.push(trimmed);
+    return '';
+  });
+
+  return {
+    reasoning,
+    visibleContent: visibleContent.trim(),
+  };
+};
+
 export function ChatMessage({ role, content, tokenCount, typing = false }: ChatMessageProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
+  const [reasoningExpanded, setReasoningExpanded] = useState(false);
+  const { reasoning, visibleContent } = extractThinkBlocks(content);
 
   const handleCopy = useCallback(async () => {
     await copyToClipboard(content);
@@ -36,9 +54,27 @@ export function ChatMessage({ role, content, tokenCount, typing = false }: ChatM
           {role === 'user' ? t('playground.you') : t('playground.assistant')}
         </div>
         <div className={styles.markdown}>
+          {role === 'assistant' && reasoning.length > 0 && (
+            <details
+              className={styles.reasoning}
+              open={reasoningExpanded}
+              onToggle={(event) =>
+                setReasoningExpanded((event.currentTarget as HTMLDetailsElement).open)
+              }
+            >
+              <summary className={styles.reasoningSummary}>
+                Reasoning ({reasoning.length})
+              </summary>
+              <div className={styles.reasoningBody}>
+                {reasoning.map((block, index) => (
+                  <pre key={`${index}-${block.slice(0, 24)}`}>{block}</pre>
+                ))}
+              </div>
+            </details>
+          )}
           {role === 'user' ? (
             <div className={styles.userText}>{content}</div>
-          ) : typing && !content.trim() ? (
+          ) : typing && !visibleContent.trim() ? (
             <div className={styles.typingIndicator} aria-label={t('common.loading')}>
               <span className={styles.typingDot} />
               <span className={styles.typingDot} />
@@ -46,11 +82,11 @@ export function ChatMessage({ role, content, tokenCount, typing = false }: ChatM
             </div>
           ) : typing ? (
             <div className={styles.typingText}>
-              {content}
+              {visibleContent}
               <span className={styles.typingCursor}>▍</span>
             </div>
           ) : (
-            <ReactMarkdown>{content}</ReactMarkdown>
+            <ReactMarkdown>{visibleContent}</ReactMarkdown>
           )}
         </div>
         <div className={styles.footer}>
