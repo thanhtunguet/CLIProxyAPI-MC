@@ -1426,8 +1426,7 @@
     "input_placeholder": "输入消息...（Enter 发送，Shift+Enter 换行）",
     "send": "发送",
     "stop": "停止",
-    "clear_chat": "清空对话",
-    "copied": "已复制！"
+    "clear_chat": "清空对话"
   },
   "notification": {
     "debug_updated": "调试设置已更新",

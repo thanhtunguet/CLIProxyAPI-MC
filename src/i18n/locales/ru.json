@@ -1425,8 +1425,7 @@
     "input_placeholder": "Введите сообщение... (Enter для отправки, Shift+Enter для новой строки)",
     "send": "Отправить",
     "stop": "Стоп",
-    "clear_chat": "Очистить чат",
-    "copied": "Скопировано!"
+    "clear_chat": "Очистить чат"
   },
   "notification": {
     "debug_updated": "Настройки отладки обновлены",

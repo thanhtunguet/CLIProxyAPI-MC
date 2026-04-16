@@ -49,12 +49,12 @@ export function ChatMessage({ role, content, tokenCount }: ChatMessageProps) {
           )}
           <button
             type="button"
-            className={styles.copyBtn}
+            className={`${styles.copyBtn} ${copied ? styles.copyBtnCopied : ''}`}
             onClick={handleCopy}
-            title={copied ? t('common.copied') : t('common.copy')}
+            title={t('common.copy')}
+            aria-label={t('common.copy')}
           >
             <IconCopy size={14} />
-            {copied ? t('common.copied') : t('common.copy')}
           </button>
         </div>
       </div>

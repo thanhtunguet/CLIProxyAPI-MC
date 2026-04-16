@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useConfigStore } from '@/stores';
+import { parse as parseYaml } from 'yaml';
+import { useAuthStore, useNotificationStore } from '@/stores';
 import { apiCallApi, getApiCallErrorMessage } from '@/services/api/apiCall';
-import { apiKeysApi } from '@/services/api/apiKeys';
-import { buildOpenAIChatCompletionsEndpoint } from '@/components/providers/utils';
+import { configFileApi } from '@/services/api/configFile';
 import {
   ModelSelector,
   TemperatureControl,
@@ -15,6 +15,13 @@ import { Button } from '@/components/ui/Button';
 import { IconSend, IconStop } from '@/components/ui/icons';
 import styles from './PlaygroundPage.module.scss';
 
+declare const process: {
+  env: {
+    API_URL?: string;
+    NODE_ENV?: string;
+  };
+};
+
 interface ChatMessageItem {
   id: string;
   role: 'user' | 'assistant';
@@ -24,117 +31,274 @@ interface ChatMessageItem {
 
 let messageCounter = 0;
 
-const buildModelGroups = (
-  config: ReturnType<typeof useConfigStore.getState>['config']
-): ModelGroup[] => {
-  const groups: ModelGroup[] = [];
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
 
-  // Gemini
-  if (config?.geminiApiKeys?.length) {
-    const models = new Set<string>();
-    for (const key of config.geminiApiKeys) {
-      if (key.models) {
-        for (const m of key.models) {
-          models.add(m.name);
-        }
-      }
-    }
-    if (models.size > 0) {
-      groups.push({ provider: 'Gemini', models: Array.from(models).sort() });
-    }
+const extractApiKeyValue = (raw: unknown): string | null => {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed ? trimmed : null;
   }
 
-  // Codex
-  if (config?.codexApiKeys?.length) {
-    const models = new Set<string>();
-    for (const key of config.codexApiKeys) {
-      if (key.models) {
-        for (const m of key.models) {
-          models.add(m.name);
-        }
-      }
-    }
-    if (models.size > 0) {
-      groups.push({ provider: 'Codex', models: Array.from(models).sort() });
-    }
+  if (!isRecord(raw)) return null;
+  const candidates = [raw['api-key'], raw.apiKey, raw.key, raw.Key];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const trimmed = candidate.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+};
+
+const parseApiKeys = (raw: unknown): string[] => {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const keys: string[] = [];
+
+  for (const item of raw) {
+    const key = extractApiKeyValue(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    keys.push(key);
   }
 
-  // Claude
-  if (config?.claudeApiKeys?.length) {
-    const models = new Set<string>();
-    for (const key of config.claudeApiKeys) {
-      if (key.models) {
-        for (const m of key.models) {
-          models.add(m.name);
-        }
-      }
+  return keys;
+};
+
+const parseApiKeysFromConfigYaml = (yamlContent: string): string[] => {
+  try {
+    const parsed = parseYaml(yamlContent);
+    if (!isRecord(parsed)) return [];
+
+    if (Object.prototype.hasOwnProperty.call(parsed, 'api-keys')) {
+      const directKeys = parseApiKeys(parsed['api-keys']);
+      if (directKeys.length) return directKeys;
     }
-    if (models.size > 0) {
-      groups.push({ provider: 'Claude', models: Array.from(models).sort() });
+
+    const auth = isRecord(parsed.auth) ? parsed.auth : null;
+    const providers = auth && isRecord(auth.providers) ? auth.providers : null;
+    const configApiKeyProvider =
+      providers && isRecord(providers['config-api-key']) ? providers['config-api-key'] : null;
+
+    if (!configApiKeyProvider) return [];
+
+    if (Object.prototype.hasOwnProperty.call(configApiKeyProvider, 'api-key-entries')) {
+      const entryKeys = parseApiKeys(configApiKeyProvider['api-key-entries']);
+      if (entryKeys.length) return entryKeys;
     }
+
+    return parseApiKeys(configApiKeyProvider['api-keys']);
+  } catch {
+    return [];
+  }
+};
+
+const normalizeProviderLabel = (raw: string): string => {
+  const normalized = raw.trim().toLowerCase();
+  if (!normalized) return '';
+
+  const knownMap: Record<string, string> = {
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    google: 'Google',
+    gemini: 'Google',
+    deepseek: 'DeepSeek',
+    qwen: 'Qwen',
+    moonshotai: 'MoonshotAI',
+    xai: 'xAI',
+    'x-ai': 'xAI',
+    grok: 'xAI',
+    mistral: 'Mistral',
+  };
+
+  if (knownMap[normalized]) return knownMap[normalized];
+  return normalized
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+};
+
+const inferProviderFromModel = (modelName: string): string => {
+  const trimmed = modelName.trim();
+  if (!trimmed) return 'Other';
+
+  const lower = trimmed.toLowerCase();
+  const slashIndex = lower.indexOf('/');
+  if (slashIndex > 0) {
+    const prefix = normalizeProviderLabel(lower.slice(0, slashIndex));
+    if (prefix) return prefix;
   }
 
-  // Vertex
-  if (config?.vertexApiKeys?.length) {
-    const models = new Set<string>();
-    for (const key of config.vertexApiKeys) {
-      if (key.models) {
-        for (const m of key.models) {
-          models.add(m.name);
-        }
-      }
-    }
-    if (models.size > 0) {
-      groups.push({ provider: 'Vertex', models: Array.from(models).sort() });
-    }
+  if (lower.includes('gpt') || /^o\d/.test(lower) || lower.includes('chatgpt')) return 'OpenAI';
+  if (lower.includes('claude')) return 'Anthropic';
+  if (lower.includes('gemini')) return 'Google';
+  if (lower.includes('qwen')) return 'Qwen';
+  if (lower.includes('deepseek')) return 'DeepSeek';
+  if (lower.includes('grok')) return 'xAI';
+  if (lower.includes('mistral')) return 'Mistral';
+
+  return 'Other';
+};
+
+const parseModelName = (raw: unknown): string => {
+  if (typeof raw === 'string') return raw.trim();
+  if (!isRecord(raw)) return '';
+  const candidate = raw.id ?? raw.name ?? raw.model ?? raw.value;
+  return typeof candidate === 'string' ? candidate.trim() : '';
+};
+
+const parseProviderName = (raw: unknown): string => {
+  if (!isRecord(raw)) return '';
+  const candidate =
+    raw.owned_by ?? raw.ownedBy ?? raw.provider ?? raw.vendor ?? raw.organization ?? raw.org;
+  if (typeof candidate !== 'string') return '';
+  return normalizeProviderLabel(candidate);
+};
+
+const buildModelGroupsFromPayload = (payload: unknown): ModelGroup[] => {
+  let source: unknown[] = [];
+  if (Array.isArray(payload)) {
+    source = payload;
+  } else if (isRecord(payload)) {
+    if (Array.isArray(payload.data)) source = payload.data;
+    else if (Array.isArray(payload.models)) source = payload.models;
   }
 
-  // OpenAI Compatible
-  if (config?.openaiCompatibility?.length) {
-    for (const provider of config.openaiCompatibility) {
-      const models = new Set<string>();
-      if (provider.models) {
-        for (const m of provider.models) {
-          models.add(m.name);
-        }
-      }
-      if (models.size > 0) {
-        groups.push({ provider: provider.name, models: Array.from(models).sort() });
-      }
-    }
+  const grouped = new Map<string, Set<string>>();
+
+  for (const item of source) {
+    const modelName = parseModelName(item);
+    if (!modelName) continue;
+
+    const provider = parseProviderName(item) || inferProviderFromModel(modelName);
+    const bucket = grouped.get(provider) ?? new Set<string>();
+    bucket.add(modelName);
+    grouped.set(provider, bucket);
   }
 
-  return groups;
+  return Array.from(grouped.entries())
+    .map(([provider, models]) => ({
+      provider,
+      models: Array.from(models).sort((a, b) => a.localeCompare(b)),
+    }))
+    .sort((a, b) => a.provider.localeCompare(b.provider));
+};
+
+const hasModel = (groups: readonly ModelGroup[], model: string): boolean => {
+  if (!model.trim()) return false;
+  return groups.some((group) => group.models.includes(model));
+};
+
+const buildApiCallOpenAIEndpoint = (
+  _apiBase: string,
+  route: 'models' | 'chat/completions'
+): string => {
+  const env = String(process.env.NODE_ENV || '').toLowerCase();
+  const apiUrlFromEnv = String(process.env.API_URL || '').trim();
+  const browserOrigin =
+    typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '';
+
+  const rawBase =
+    env === 'development'
+      ? (apiUrlFromEnv || browserOrigin)
+      : (browserOrigin || apiUrlFromEnv);
+
+  const trimmedBase = rawBase.trim().replace(/\/+$/g, '');
+  const path = `/v1/${route}`;
+  if (!trimmedBase) return path;
+  return `${trimmedBase}${path}`;
+};
+
+const isRequestCanceled = (error: unknown): boolean => {
+  if (error instanceof DOMException && error.name === 'AbortError') return true;
+  if (error instanceof Error && (error.name === 'CanceledError' || error.name === 'AbortError')) {
+    return true;
+  }
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === 'ERR_CANCELED'
+  ) {
+    return true;
+  }
+  return false;
 };
 
 export function PlaygroundPage() {
   const { t } = useTranslation();
-  const config = useConfigStore((state) => state.config);
-  const fetchConfig = useConfigStore((state) => state.fetchConfig);
+  const showNotification = useNotificationStore((state) => state.showNotification);
+  const apiBase = useAuthStore((state) => state.apiBase);
 
   const [messages, setMessages] = useState<ChatMessageItem[]>([]);
   const [input, setInput] = useState('');
+  const [modelGroups, setModelGroups] = useState<ModelGroup[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
+  const [playgroundApiKey, setPlaygroundApiKey] = useState('');
   const [temperature, setTemperature] = useState(0.7);
   const [systemPrompt, setSystemPrompt] = useState('');
   const [systemPromptDialogOpen, setSystemPromptDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const modelGroups = buildModelGroups(config);
-
-  useEffect(() => {
-    fetchConfig().catch(() => {});
-  }, [fetchConfig]);
-
-  // Auto-select first model when groups change
-  useEffect(() => {
-    if (!selectedModel && modelGroups.length > 0 && modelGroups[0].models.length > 0) {
-      setSelectedModel(modelGroups[0].models[0]);
+  const loadModels = useCallback(async () => {
+    if (!apiBase) {
+      setModelGroups([]);
+      setPlaygroundApiKey('');
+      setSelectedModel('');
+      return;
     }
-  }, [modelGroups, selectedModel]);
+
+    setLoadingModels(true);
+    try {
+      const yamlContent = await configFileApi.fetchConfigYaml();
+      const configApiKeys = parseApiKeysFromConfigYaml(yamlContent);
+      const primaryApiKey = configApiKeys[0]?.trim() ?? '';
+
+      if (!primaryApiKey) {
+        throw new Error(t('notification.openai_test_key_required'));
+      }
+
+      const endpoint = buildApiCallOpenAIEndpoint(apiBase, 'models');
+      const result = await apiCallApi.request({
+        method: 'GET',
+        url: endpoint,
+        header: {
+          Authorization: `Bearer ${primaryApiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (result.statusCode < 200 || result.statusCode >= 300) {
+        throw new Error(getApiCallErrorMessage(result));
+      }
+
+      const groups = buildModelGroupsFromPayload(result.body ?? result.bodyText);
+      if (groups.length === 0) {
+        throw new Error(t('playground.no_models'));
+      }
+
+      setPlaygroundApiKey(primaryApiKey);
+      setModelGroups(groups);
+      setSelectedModel((current) => (hasModel(groups, current) ? current : groups[0].models[0] ?? ''));
+    } catch (err: unknown) {
+      setModelGroups([]);
+      setPlaygroundApiKey('');
+      setSelectedModel('');
+      const message = err instanceof Error ? err.message : t('notification.refresh_failed');
+      showNotification(message, 'error');
+    } finally {
+      setLoadingModels(false);
+    }
+  }, [apiBase, showNotification, t]);
+
+  useEffect(() => {
+    loadModels().catch(() => {});
+  }, [loadModels]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -151,7 +315,7 @@ export function PlaygroundPage() {
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
-    if (!text || loading || !selectedModel) return;
+    if (!text || loading || loadingModels || !selectedModel) return;
 
     const userMessage: ChatMessageItem = {
       id: `msg-${++messageCounter}`,
@@ -177,93 +341,14 @@ export function PlaygroundPage() {
     apiMessages.push({ role: 'user', content: text });
 
     try {
-      // Find the provider base URL for the selected model
-      let baseUrl = '';
-      let apiKey = '';
-      const cfg = useConfigStore.getState().config;
-
-      // Search through all providers for the model
-      const searchModel = (models: Array<{ name: string }> | undefined): boolean => {
-        if (!models) return false;
-        return models.some((m) => m.name === selectedModel);
-      };
-
-      // Check Gemini
-      if (!baseUrl && cfg?.geminiApiKeys) {
-        for (const k of cfg.geminiApiKeys) {
-          if (searchModel(k.models)) {
-            baseUrl = k.baseUrl || 'https://generativelanguage.googleapis.com';
-            apiKey = k.apiKey;
-            break;
-          }
-        }
+      if (!apiBase) {
+        throw new Error(t('notification.connection_required'));
       }
-
-      // Check Codex
-      if (!baseUrl && cfg?.codexApiKeys) {
-        for (const k of cfg.codexApiKeys) {
-          if (searchModel(k.models)) {
-            baseUrl = k.baseUrl!;
-            apiKey = k.apiKey;
-            break;
-          }
-        }
-      }
-
-      // Check Claude
-      if (!baseUrl && cfg?.claudeApiKeys) {
-        for (const k of cfg.claudeApiKeys) {
-          if (searchModel(k.models)) {
-            baseUrl = k.baseUrl || 'https://api.anthropic.com';
-            apiKey = k.apiKey;
-            break;
-          }
-        }
-      }
-
-      // Check Vertex
-      if (!baseUrl && cfg?.vertexApiKeys) {
-        for (const k of cfg.vertexApiKeys) {
-          if (searchModel(k.models)) {
-            baseUrl = k.baseUrl!;
-            apiKey = k.apiKey;
-            break;
-          }
-        }
-      }
-
-      // Check OpenAI Compatible
-      if (!baseUrl && cfg?.openaiCompatibility) {
-        for (const provider of cfg.openaiCompatibility) {
-          if (searchModel(provider.models)) {
-            baseUrl = provider.baseUrl;
-            apiKey = provider.apiKeyEntries?.[0]?.apiKey || '';
-            break;
-          }
-        }
-      }
-
-      if (!baseUrl) {
-        throw new Error(t('playground.provider_not_found'));
-      }
-
-      // Prefer API keys managed by backend config management (/api-keys).
-      // Fallback to provider-specific key if managed keys are not available.
-      try {
-        const managedKeys = await apiKeysApi.list();
-        const primaryManagedKey = managedKeys.find((key) => key.trim());
-        if (primaryManagedKey) {
-          apiKey = primaryManagedKey.trim();
-        }
-      } catch {
-        // Keep provider-level fallback key when /api-keys is unavailable.
-      }
-
-      if (!apiKey) {
+      if (!playgroundApiKey) {
         throw new Error(t('notification.openai_test_key_required'));
       }
 
-      const endpoint = buildOpenAIChatCompletionsEndpoint(baseUrl);
+      const endpoint = buildApiCallOpenAIEndpoint(apiBase, 'chat/completions');
 
       const requestBody = {
         model: selectedModel,
@@ -275,11 +360,11 @@ export function PlaygroundPage() {
         method: 'POST',
         url: endpoint,
         header: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${playgroundApiKey}`,
           'Content-Type': 'application/json',
         },
         data: JSON.stringify(requestBody),
-      });
+      }, { signal: controller.signal });
 
       if (result.statusCode < 200 || result.statusCode >= 300) {
         throw new Error(getApiCallErrorMessage(result));
@@ -315,7 +400,10 @@ export function PlaygroundPage() {
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-    } catch (err) {
+    } catch (err: unknown) {
+      if (isRequestCanceled(err)) {
+        return;
+      }
       const errorMessage = err instanceof Error ? err.message : t('common.unknown_error');
       const errorMessageObj: ChatMessageItem = {
         id: `msg-${++messageCounter}`,
@@ -327,7 +415,18 @@ export function PlaygroundPage() {
       setLoading(false);
       setAbortController(null);
     }
-  }, [input, loading, selectedModel, systemPrompt, temperature, messages, t]);
+  }, [
+    input,
+    loading,
+    loadingModels,
+    selectedModel,
+    systemPrompt,
+    temperature,
+    messages,
+    t,
+    apiBase,
+    playgroundApiKey,
+  ]);
 
   const handleStop = useCallback(() => {
     abortController?.abort();
@@ -358,11 +457,15 @@ export function PlaygroundPage() {
               groups={modelGroups}
               onChange={setSelectedModel}
               placeholder={t('playground.select_model')}
-              disabled={loading}
+              disabled={loading || loadingModels}
             />
           </div>
           <div className={styles.tempControl}>
-            <TemperatureControl value={temperature} onChange={setTemperature} disabled={loading} />
+            <TemperatureControl
+              value={temperature}
+              onChange={setTemperature}
+              disabled={loading || loadingModels}
+            />
           </div>
           <div className={styles.systemPromptBtn}>
             <SystemPromptDialog
@@ -416,7 +519,7 @@ export function PlaygroundPage() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t('playground.input_placeholder')}
-            disabled={loading}
+            disabled={loading || loadingModels}
             rows={1}
           />
         </div>
@@ -442,7 +545,7 @@ export function PlaygroundPage() {
                 variant="primary"
                 size="sm"
                 onClick={handleSend}
-                disabled={!input.trim() || !selectedModel}
+                disabled={!input.trim() || !selectedModel || loadingModels}
               >
                 <IconSend size={14} />
                 {t('playground.send')}

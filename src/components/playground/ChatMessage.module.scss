@@ -10,6 +10,22 @@
   }
 }
 
+.message.user {
+  flex-direction: row-reverse;
+}
+
+.message.user .content {
+  align-items: flex-end;
+}
+
+.message.user .role {
+  text-align: right;
+}
+
+.message.user .footer {
+  justify-content: flex-end;
+}
+
 .avatar {
   flex-shrink: 0;
   width: 36px;
@@ -32,6 +48,8 @@
 .content {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .role {
@@ -160,13 +178,14 @@
 .copyBtn {
   display: inline-flex;
   align-items: center;
-  gap: $spacing-xs;
-  padding: 4px 8px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border: 1px solid var(--border-color);
-  border-radius: $radius-sm;
+  border-radius: $radius-full;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 12px;
   cursor: pointer;
   transition: all $transition-fast;
 
@@ -178,4 +197,10 @@
   svg {
     display: block;
   }
+}
+
+.copyBtnCopied {
+  color: var(--primary-color);
+  border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 12%, transparent);
 }

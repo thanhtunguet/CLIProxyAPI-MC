@@ -1426,8 +1426,7 @@
     "input_placeholder": "Type your message... (Enter to send, Shift+Enter for new line)",
     "send": "Send",
     "stop": "Stop",
-    "clear_chat": "Clear Chat",
-    "copied": "Copied!"
+    "clear_chat": "Clear Chat"
   },
   "notification": {
     "debug_updated": "Debug settings updated",
